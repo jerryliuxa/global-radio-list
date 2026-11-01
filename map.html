@@ -40,6 +40,7 @@
     head: '🔍 Two-point line · straight-line distance',
     rx: 'Receiver', tx: 'Transmitter', dist: 'Straight-line distance ≈',
     brg: 'Bearing from receiver to transmitter: {b}° {d} (great-circle)',
+    azLbl: 'Antenna azimuth', azTip: 'Antenna {a}°',
     noargs: 'Missing coordinates. Usage: map.html?a=lat,lon&b=lat,lon&na=NameA&nb=NameB',
     fail: 'All map tile sources unreachable — the line and labels are still shown.',
     C: ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'], loc: 'en-GB'
@@ -48,6 +49,7 @@
     head: '🔍 两点连线 · 直线距离',
     rx: '接收机', tx: '发射台', dist: '直线距离 ≈',
     brg: '从接收机指向发射台：{b}° {d}（大圆航线）',
+    azLbl: '天线方位', azTip: '天线方位 {a}°',
     noargs: '缺少坐标参数。用法：map.html?a=纬度,经度&b=纬度,经度&na=名称A&nb=名称B',
     fail: '地图瓦片源均不可达，已显示连线与标注。',
     C: ['北', '东北', '东', '东南', '南', '西南', '西', '西北'], loc: 'zh-CN'
@@ -61,7 +63,9 @@
     return m;
   }
   var A = pt(q.get('a')), B = pt(q.get('b'));
-  var NA = q.get('na') || '接收机', NB = q.get('nb') || '发射台';
+  var NA = q.get('na') || (EN ? 'Receiver' : '接收机'), NB = q.get('nb') || (EN ? 'Transmitter' : '发射台');
+  var AZ = null;
+  if (/^\d+(\.\d+)?$/.test(q.get('az') || '')) AZ = parseFloat(q.get('az'));
   var COMPASS8 = ['北', '东北', '东', '东南', '南', '西南', '西', '西北'];
   function fmtLat(v) { var h = v >= 0 ? 'N' : 'S'; v = Math.abs(v); var d = Math.floor(v), m = Math.round((v - d) * 60); if (m === 60) { d++; m = 0; } return d + '°' + ('0' + m).slice(-2) + '′' + h; }
   function fmtLon(v) { var h = v >= 0 ? 'E' : 'W'; v = Math.abs(v); var d = Math.floor(v), m = Math.round((v - d) * 60); if (m === 60) { d++; m = 0; } return d + '°' + ('0' + m).slice(-2) + '′' + h; }
@@ -85,6 +89,7 @@
   info(
     '<div class="row"><span class="dot rx"></span><b>' + MSG.rx + '</b>: ' + NA + ' (' + fmtLat(A[0]) + ' ' + fmtLon(A[1]) + ')</div>' +
     '<div class="row"><span class="dot tx"></span><b>' + MSG.tx + '</b>: ' + NB + ' (' + fmtLat(B[0]) + ' ' + fmtLon(B[1]) + ')</div>' +
+    (AZ !== null ? '<div class="row">🧭 ' + MSG.azLbl + ': ' + AZ + '°</div>' : '') +
     '<div class="dist">' + MSG.dist + ' ' + km.toLocaleString(EN ? 'en-US' : 'zh-CN') + ' km</div>' +
     '<div class="row" style="color:#8b98ad">' + MSG.brg.replace('{b}', Math.round(brg)).replace('{d}', dir) + '</div>'
   );
@@ -181,6 +186,26 @@
     return pts;
   }
 
+  /* 沿固定方位角的大圆点列（目标点公式分段） */
+  function bearingPoints(start, brgDeg, lenKm, n) {
+    var rad = Math.PI / 180, R = 6371;
+    var f1 = start[0] * rad, l1 = start[1] * rad, th = brgDeg * rad, d = lenKm / R;
+    var pts = [start.slice()];
+    var prevLng = start[1];
+    for (var i = 1; i <= n; i++) {
+      var di = d * i / n;
+      var f2 = Math.asin(Math.sin(f1) * Math.cos(di) + Math.cos(f1) * Math.sin(di) * Math.cos(th));
+      var l2 = l1 + Math.atan2(Math.sin(th) * Math.sin(di) * Math.cos(f1),
+                               Math.cos(di) - Math.sin(f1) * Math.sin(f2));
+      var la = f2 / rad, lo = l2 / rad;
+      while (lo - prevLng > 180) lo -= 360;
+      while (lo - prevLng < -180) lo += 360;
+      prevLng = lo;
+      pts.push([la, lo]);
+    }
+    return pts;
+  }
+
   /* 连线与标注（瓦片源就绪后调用） */
   var drawn = false;
   function drawOverlays() {
@@ -198,6 +223,16 @@
     }
     mark(A, '#2b7fff', '📡 ' + NA);
     mark(B, '#ff8c00', '📻 ' + NB);
+
+    /* 发射台天线方位射线：仅在有数字方位角时绘制 */
+    if (AZ !== null) {
+      var azLen = Math.max(300, km * 0.18);          // 射线长度：距离的 18%，至少 300 km
+      var azPts = bearingPoints(B, AZ, azLen, 24);
+      L.polyline(azPts, { color: '#ff5d5d', weight: 3, opacity: 0.95, dashArray: '7,7' }).addTo(map);
+      var tip = azPts[azPts.length - 1];
+      L.marker(tip, { opacity: 0, interactive: false }).addTo(map)
+        .bindTooltip(MSG.azTip.replace('{a}', AZ), { permanent: true, direction: 'top', className: 'lbl', offset: [0, -4] });
+    }
     map.fitBounds(line.getBounds(), { padding: [50, 50] });
   }
   drawOverlays();   // 先画连线标注，瓦片稍后到位

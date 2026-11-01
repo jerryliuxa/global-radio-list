@@ -269,10 +269,13 @@ function badges(it, live) {
 }
 function mapHref(it) {
   if (!it.ll || !state.cityCoord) return '';
+  var azv = String(it.az || '').trim();
+  var az = /^\d+(\.\d+)?$/.test(azv) ? azv : '';
   return 'map.html?a=' + state.cityCoord[0] + ',' + state.cityCoord[1] +
     '&b=' + it.ll[0] + ',' + it.ll[1] +
     '&na=' + encodeURIComponent(dispLabel(state.cityLabel)) +
     '&nb=' + encodeURIComponent(((it.st || '') + (it.si ? ' @ ' + it.si : '')).slice(0, 70)) +
+    (az ? '&az=' + az : '') +
     '&lang=' + UI;
 }
 function metaLine(it) {
