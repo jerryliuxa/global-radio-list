@@ -198,6 +198,9 @@ button.sdrmore:hover { color: var(--cyan); border-color: var(--cyan); }
 .modal-head h2 { margin: 0; font-size: 18px; color: var(--cyan); }
 #sdrClose { background: var(--card2); color: var(--tx2); border: 1px solid var(--line);
   border-radius: 8px; width: 30px; height: 30px; font-size: 17px; cursor: pointer; }
+.sdrreset { background: var(--card2); color: var(--tx2); border: 1px solid var(--line);
+  border-radius: 8px; padding: 5px 10px; font-size: 12px; cursor: pointer; white-space: nowrap; }
+.sdrreset:hover { color: var(--cyan); border-color: var(--cyan); }
 #sdrClose:hover { color: var(--red); border-color: var(--red); }
 .hint { color: var(--tx2); font-size: 12.5px; line-height: 1.7; }
 .hint code { background: var(--card2); padding: 1px 5px; border-radius: 4px; font-size: 11.5px; }

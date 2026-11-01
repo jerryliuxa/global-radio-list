@@ -53,7 +53,8 @@ var I18N = {
     sdrUrlPh: '接收机地址，如 http://…:8073/ 或 https://…/', sdrNamePh: '名称（留空自动取域名）',
     sdrAuto: '自动识别类型', sdrAdd: '＋ 添加', sdrDel: '删除', sdrDefT: '设为默认接收机',
     sdrBadUrl: '地址无效：请粘贴完整 URL（含 http:// 或 https://）', sdrProto: '仅支持 http/https 地址',
-    sdrDup: '该接收机已在列表中', sdrAdded: '✓ 已添加 {n}（{t}）'
+    sdrDup: '该接收机已在列表中', sdrAdded: '✓ 已添加 {n}（{t}）',
+    sdrReset: '↺ 恢复默认', sdrResetT: '放弃本地修改，重新采用 js/sdrs.js 配置文件中的列表'
   },
   en: {
     docTitle: 'Global Radio Guide — LW/MW/SW (DRM)/FM schedules on air now, in your local time',
@@ -96,7 +97,8 @@ var I18N = {
     sdrUrlPh: 'Receiver URL, e.g. http://…:8073/ or https://…/', sdrNamePh: 'Name (blank = hostname)',
     sdrAuto: 'Detect type automatically', sdrAdd: '＋ Add', sdrDel: 'Delete', sdrDefT: 'Set as default receiver',
     sdrBadUrl: 'Invalid URL: paste a full URL including http:// or https://', sdrProto: 'Only http/https URLs are supported',
-    sdrDup: 'This receiver is already in the list', sdrAdded: '✓ Added {n} ({t})'
+    sdrDup: 'This receiver is already in the list', sdrAdded: '✓ Added {n} ({t})',
+    sdrReset: '↺ Reset to defaults', sdrResetT: 'Discard local changes and re-apply the list from js/sdrs.js'
   }
 };
 function t(k, vars) {
@@ -480,14 +482,37 @@ function countLive() {
 
 /* ---------- SDR 收音机（KiwiSDR / OpenWebRX / WebSDR 联动） ---------- */
 var SDR_TYPES = { kiwi: 'KiwiSDR', openwebrx: 'OpenWebRX', websdr: 'WebSDR' };
+/* SDR 列表：js/sdrs.js 为默认配置（rev 变化时全员更新），localStorage 保存访客自定义 */
+var SDR_CFG = window.RADIO_SDRS_CFG || { rev: 0, sdrs: [] };
 var SDRS = (function () {
   try {
-    var s = JSON.parse(localStorage.getItem('rg_sdrs') || 'null');
-    if (Array.isArray(s)) return s;
+    var saved = JSON.parse(localStorage.getItem('rg_sdrs') || 'null');
+    var savedRev = localStorage.getItem('rg_sdrs_rev');
+    if (Array.isArray(saved) && saved.length && (savedRev === String(SDR_CFG.rev) || !savedRev)) {
+      return saved;   // 访客自定义（或旧数据）优先生效
+    }
   } catch (e) {}
-  return [{ name: 'KiwiSDR jjm0311', url: 'http://jjm0311.proxy.kiwisdr.com:8073/', type: 'kiwi', def: true }];
+  var list = Array.isArray(SDR_CFG.sdrs) && SDR_CFG.sdrs.length
+    ? JSON.parse(JSON.stringify(SDR_CFG.sdrs))
+    : [{ name: 'KiwiSDR', url: 'http://jjm0311.proxy.kiwisdr.com:8073/', type: 'kiwi', def: true }];
+  try {
+    localStorage.setItem('rg_sdrs', JSON.stringify(list));
+    localStorage.setItem('rg_sdrs_rev', String(SDR_CFG.rev));
+  } catch (e) {}
+  return list;
 })();
-function saveSdrs() { try { localStorage.setItem('rg_sdrs', JSON.stringify(SDRS)); } catch (e) {} }
+function resetSdrsToConfig() {
+  SDRS = JSON.parse(JSON.stringify(Array.isArray(SDR_CFG.sdrs) && SDR_CFG.sdrs.length
+    ? SDR_CFG.sdrs
+    : [{ name: 'KiwiSDR', url: 'http://jjm0311.proxy.kiwisdr.com:8073/', type: 'kiwi', def: true }]));
+  saveSdrs(); renderSdrModal(); render();
+}
+function saveSdrs() {
+  try {
+    localStorage.setItem('rg_sdrs', JSON.stringify(SDRS));
+    localStorage.setItem('rg_sdrs_rev', String(SDR_CFG.rev));
+  } catch (e) {}
+}
 function defaultSdr() {
   return SDRS.filter(function (s) { return s.def; })[0] || SDRS[0];
 }
@@ -551,6 +576,8 @@ function renderSdrModal() {
       '<button class="del" data-del="' + i + '">' + t('sdrDel') + '</button></div>';
   }).join('') : '<p class="hint">' + t('sdrEmpty') + '</p>';
   $('sdrCount').textContent = SDRS.length ? '×' + SDRS.length : '';
+  var rb = $('sdrReset');
+  if (rb) rb.style.display = (Array.isArray(SDR_CFG.sdrs) && SDR_CFG.sdrs.length) ? '' : 'none';
   $('sdrList').querySelectorAll('input[name=sdrdef]').forEach(function (r) {
     r.onchange = function () {
       var i = +r.getAttribute('data-i');
@@ -783,6 +810,8 @@ function applyI18n() {
   $('sdrName').placeholder = t('sdrNamePh');
   $('sdrType').options[0].textContent = t('sdrAuto');
   $('sdrAdd').textContent = t('sdrAdd');
+  var rb = $('sdrReset');
+  if (rb) { rb.textContent = t('sdrReset'); rb.title = t('sdrResetT'); }
   $('langBtn').textContent = UI === 'en' ? '中文' : 'EN';
 }
 
@@ -803,6 +832,7 @@ function init() {
   $('sdrModal').addEventListener('click', function (e) { if (e.target === this) this.classList.add('hidden'); });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { $('sdrModal').classList.add('hidden'); closeSdrMenus(); } });
   $('sdrAdd').onclick = addSdr;
+  $('sdrReset').onclick = resetSdrsToConfig;
   $('sdrUrl').addEventListener('keydown', function (e) { if (e.key === 'Enter') addSdr(); });
   // 卡片"备用接收机"菜单：点按钮开合，点外面关闭，菜单内是真实链接直接跳转
   document.addEventListener('click', function (e) {

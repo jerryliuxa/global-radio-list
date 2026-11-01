@@ -59,7 +59,10 @@
   <div class="modal-box">
     <div class="modal-head">
       <h2>🎧 SDR 收音机</h2>
-      <button id="sdrClose" title="关闭">×</button>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button id="sdrReset" class="sdrreset" title="放弃本地修改，重新采用配置文件列表">↺ 恢复默认</button>
+        <button id="sdrClose" title="关闭">×</button>
+      </div>
     </div>
     <p class="hint" id="sdrHint"></p>
     <div id="sdrList"></div>
@@ -86,6 +89,7 @@
   <p id="foot3"></p>
 </footer>
 
+<script src="js/sdrs.js"></script>
 <script src="data/data.js"></script>
 <script src="js/cities.js"></script>
 <script src="js/app.js"></script>
