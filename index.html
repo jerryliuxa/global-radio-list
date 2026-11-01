@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>环球收听时钟 · Global Radio Guide — 长波/中波/短波(DRM)/FM 在播节目表</title>
+<meta name="description" content="根据你所在城市的当地时间，实时显示当前正在播出的长波、中波、短波（含 DRM 数字）与 FM 广播节目和频率。数据源：A26 短波频率表 / HFCC / WRMI。">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📻</text></svg>">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="logo">📻</span>
+    <div>
+      <h1><span id="h1text">环球收听时钟</span> <small id="h1sub">Global Radio Guide</small></h1>
+      <p class="tagline" id="tagline">不同国家城市的听友 · 按当地时间看此刻在播的长波 / 中波 / 短波（DRM）/ FM 节目与频率</p>
+    </div>
+  </div>
+  <div class="clockbox">
+    <div class="cityrow">
+      <label for="citySelect" id="locLabel">📍 我在</label>
+      <select id="citySelect"></select>
+    </div>
+    <div class="cityrow">
+      <input type="search" id="customCity" list="tzList" autocomplete="off"
+             placeholder="✏️ 任意收听地点：城市名 / IANA 时区 / UTC±N">
+      <datalist id="tzList"></datalist>
+    </div>
+    <div class="cityrow">
+      <button id="sdrBtn" class="sdrbtn" title="管理 WebSDR / KiwiSDR / OpenWebRX 接收机">🎧 SDR 收听 <span id="sdrCount" class="cnt"></span></button>
+      <button id="langBtn" class="langbtn" title="Switch language / 切换语言">EN</button>
+    </div>
+    <div class="bigclock" id="localClock">--:--:--</div>
+    <div class="clocksub">📡 <span id="rxCoord">—</span> · <span id="localDate">—</span> · <span id="tzOffset"></span> · UTC <span id="utcClock">--:--</span></div>
+  </div>
+</header>
+
+<nav class="controls">
+  <div class="chips" id="bandChips" aria-label="频段筛选"></div>
+  <div class="chips" id="srcChips" aria-label="数据源筛选"></div>
+  <div class="filters">
+    <select id="langSelect"><option value="all">全部语言</option></select>
+    <input type="search" id="search" placeholder="🔍 搜电台 / 频率 / 节目名…">
+    <div class="seg" id="viewSeg">
+      <button data-view="now" class="active">正在播出</button>
+      <button data-view="next">即将播出</button>
+      <button data-view="all">全部检索</button>
+    </div>
+  </div>
+</nav>
+
+<div class="stats" id="stats"></div>
+
+<main id="list" aria-live="polite"></main>
+
+<div id="sdrModal" class="modal hidden">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h2>🎧 SDR 收音机</h2>
+      <button id="sdrClose" title="关闭">×</button>
+    </div>
+    <p class="hint" id="sdrHint"></p>
+    <div id="sdrList"></div>
+    <div class="addform">
+      <input id="sdrUrl" placeholder="接收机地址，如 http://…:8073/ 或 https://…/">
+      <div class="addrow">
+        <input id="sdrName" placeholder="名称（留空自动取域名）">
+        <select id="sdrType">
+          <option value="auto">自动识别类型</option>
+          <option value="kiwi">KiwiSDR</option>
+          <option value="openwebrx">OpenWebRX</option>
+          <option value="websdr">WebSDR</option>
+        </select>
+        <button id="sdrAdd" class="primary">＋ 添加</button>
+      </div>
+      <div id="sdrMsg" class="sdrmsg"></div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <p id="foot1"></p>
+  <p id="foot2"></p>
+  <p id="foot3"></p>
+</footer>
+
+<script src="data/data.js"></script>
+<script src="js/cities.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>发射台 ↔ 接收机 · OpenStreetMap 直线距离</title>
+<link rel="stylesheet" href="https://registry.npmmirror.com/leaflet/1.9.4/files/dist/leaflet.css">
+<style>
+  html, body, #map { height: 100%; margin: 0; }
+  body { font: 14px/1.6 "Segoe UI", "Microsoft YaHei", system-ui, sans-serif; }
+  #info {
+    position: absolute; z-index: 1000; top: 12px; left: 12px;
+    background: rgba(13,17,23,.92); color: #dbe4f0; border: 1px solid #2a3550;
+    border-radius: 12px; padding: 12px 16px; max-width: 380px;
+    box-shadow: 0 8px 30px rgba(0,0,0,.4); font-size: 13px;
+  }
+  #info h3 { margin: 0 0 6px; font-size: 14px; color: #ffb02e; }
+  #info .row { margin: 2px 0; word-break: break-all; }
+  #info .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 4px; }
+  #info .rx { background: #2b7fff; }
+  #info .tx { background: #ff8c00; }
+  #info .dist { margin-top: 6px; padding-top: 6px; border-top: 1px dashed #2a3550; font-weight: 700; color: #43d17c; font-size: 15px; }
+  #info .err { color: #ff5d5d; }
+  .lbl { background: rgba(13,17,23,.85); color: #dbe4f0; border: none !important; box-shadow: none !important;
+         font-size: 11px; padding: 1px 6px !important; border-radius: 6px; white-space: nowrap; }
+  .lbl::before { display: none; }
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div id="info"><h3 id="infoHead">🔍 两点连线 · 直线距离</h3><div id="infoBody">读取参数中…</div></div>
+<script src="https://registry.npmmirror.com/leaflet/1.9.4/files/dist/leaflet.js"></script>
+<script>
+(function () {
+  'use strict';
+  var q = new URLSearchParams(location.search);
+  var EN = q.get('lang') === 'en';
+  var MSG = EN ? {
+    title: 'Transmitter ↔ Receiver · OpenStreetMap straight-line distance',
+    head: '🔍 Two-point line · straight-line distance',
+    rx: 'Receiver', tx: 'Transmitter', dist: 'Straight-line distance ≈',
+    brg: 'Bearing from receiver to transmitter: {b}° {d} (great-circle)',
+    noargs: 'Missing coordinates. Usage: map.html?a=lat,lon&b=lat,lon&na=NameA&nb=NameB',
+    fail: 'All map tile sources unreachable — the line and labels are still shown.',
+    C: ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'], loc: 'en-GB'
+  } : {
+    title: '发射台 ↔ 接收机 · OpenStreetMap 直线距离',
+    head: '🔍 两点连线 · 直线距离',
+    rx: '接收机', tx: '发射台', dist: '直线距离 ≈',
+    brg: '从接收机指向发射台：{b}° {d}（大圆航线）',
+    noargs: '缺少坐标参数。用法：map.html?a=纬度,经度&b=纬度,经度&na=名称A&nb=名称B',
+    fail: '地图瓦片源均不可达，已显示连线与标注。',
+    C: ['北', '东北', '东', '东南', '南', '西南', '西', '西北'], loc: 'zh-CN'
+  };
+  document.title = MSG.title;
+  document.querySelector('#infoHead').textContent = MSG.head;
+  function pt(s) {
+    if (!s) return null;
+    var m = s.split(',').map(parseFloat);
+    if (m.length !== 2 || !isFinite(m[0]) || !isFinite(m[1]) || Math.abs(m[0]) > 90 || Math.abs(m[1]) > 180) return null;
+    return m;
+  }
+  var A = pt(q.get('a')), B = pt(q.get('b'));
+  var NA = q.get('na') || '接收机', NB = q.get('nb') || '发射台';
+  var COMPASS8 = ['北', '东北', '东', '东南', '南', '西南', '西', '西北'];
+  function fmtLat(v) { var h = v >= 0 ? 'N' : 'S'; v = Math.abs(v); var d = Math.floor(v), m = Math.round((v - d) * 60); if (m === 60) { d++; m = 0; } return d + '°' + ('0' + m).slice(-2) + '′' + h; }
+  function fmtLon(v) { var h = v >= 0 ? 'E' : 'W'; v = Math.abs(v); var d = Math.floor(v), m = Math.round((v - d) * 60); if (m === 60) { d++; m = 0; } return d + '°' + ('0' + m).slice(-2) + '′' + h; }
+  function info(html) { document.getElementById('infoBody').innerHTML = html; }
+
+  if (!A || !B) {
+    info('<span class="err">' + MSG.noargs + '</span>');
+    return;
+  }
+
+  /* 大圆距离（haversine）与从 A 指向 B 的方位 */
+  var rad = Math.PI / 180, R = 6371;
+  var p1 = A[0] * rad, p2 = B[0] * rad;
+  var dp = (B[0] - A[0]) * rad, dl = (B[1] - A[1]) * rad;
+  var h = Math.sin(dp / 2) * Math.sin(dp / 2) + Math.cos(p1) * Math.cos(p2) * Math.sin(dl / 2) * Math.sin(dl / 2);
+  var km = Math.round(2 * R * Math.asin(Math.sqrt(h)) / 10) * 10;
+  var brg = (Math.atan2(Math.sin(dl) * Math.cos(p2),
+    Math.cos(p1) * Math.sin(p2) - Math.sin(p1) * Math.cos(p2) * Math.cos(dl)) / rad + 360) % 360;
+  var dir = MSG.C[Math.round(brg / 45) % 8];
+
+  info(
+    '<div class="row"><span class="dot rx"></span><b>' + MSG.rx + '</b>: ' + NA + ' (' + fmtLat(A[0]) + ' ' + fmtLon(A[1]) + ')</div>' +
+    '<div class="row"><span class="dot tx"></span><b>' + MSG.tx + '</b>: ' + NB + ' (' + fmtLat(B[0]) + ' ' + fmtLon(B[1]) + ')</div>' +
+    '<div class="dist">' + MSG.dist + ' ' + km.toLocaleString(EN ? 'en-US' : 'zh-CN') + ' km</div>' +
+    '<div class="row" style="color:#8b98ad">' + MSG.brg.replace('{b}', Math.round(brg)).replace('{d}', dir) + '</div>'
+  );
+
+  /* 地图：先探测哪个 OSM 数据瓦片源可达（官方 → France → Germany），用可达者初始化 */
+  var map = L.map('map');
+  var TILE_SOURCES = [
+    { url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png' },
+    { url: 'https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png', subdomains: 'abc' },
+    { url: 'https://tile.openstreetmap.de/{z}/{x}/{y}.png' }
+  ];
+  function probe(url) {
+    return new Promise(function (resolve) {
+      var img = new Image(), done = false;
+      var t = setTimeout(function () { if (!done) { done = true; resolve(false); } }, 3000);
+      img.onload = function () { if (!done) { done = true; clearTimeout(t); resolve(true); } };
+      img.onerror = function () { if (!done) { done = true; clearTimeout(t); resolve(false); } };
+      img.src = url.replace('{s}', 'a').replace('{z}', '3').replace('{x}', '4').replace('{y}', '3') + '?v=' + Date.now();
+    });
+  }
+  (async function () {
+    var src = null;
+    for (var i = 0; i < TILE_SOURCES.length; i++) {
+      if (await probe(TILE_SOURCES[i].url)) { src = TILE_SOURCES[i]; break; }
+    }
+    if (!src) {
+      info(info() + '<div class="err">' + MSG.fail + '</div>');
+      drawOverlays();
+      return;
+    }
+    var tiles = L.tileLayer(src.url, {
+      maxZoom: 18, subdomains: src.subdomains || 'abc',
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> 贡献者'
+    }).addTo(map);
+    // 运行中失效则继续降级
+    var tileErrors = 0, tileSrc = TILE_SOURCES.indexOf(src);
+    tiles.on('tileerror', function () {
+      tileErrors++;
+      if (tileErrors >= 6 && tileSrc < TILE_SOURCES.length - 1) {
+        tileErrors = 0; tileSrc++;
+        tiles.setUrl(TILE_SOURCES[tileSrc].url);
+      }
+    });
+    drawOverlays();
+  })();
+
+  /* 大圆航线：球面插值成折线（跨 180° 经线时展开经度避免画错） */
+  function gcPoints(a, b, n) {
+    var deg = 180 / Math.PI;
+    var f1 = a[0] * rad, l1 = a[1] * rad, f2 = b[0] * rad, l2 = b[1] * rad;
+    var v1 = [Math.cos(f1) * Math.cos(l1), Math.cos(f1) * Math.sin(l1), Math.sin(f1)];
+    var v2 = [Math.cos(f2) * Math.cos(l2), Math.cos(f2) * Math.sin(l2), Math.sin(f2)];
+    var dot = Math.max(-1, Math.min(1, v1[0] * v2[0] + v1[1] * v2[1] + v1[2] * v2[2]));
+    var w = Math.acos(dot), pts = [], prevLng = a[1];
+    for (var i = 0; i <= n; i++) {
+      var t = i / n, p;
+      if (w < 1e-9) { p = v1; }
+      else {
+        var s1 = Math.sin((1 - t) * w) / Math.sin(w), s2 = Math.sin(t * w) / Math.sin(w);
+        p = [s1 * v1[0] + s2 * v2[0], s1 * v1[1] + s2 * v2[1], s1 * v1[2] + s2 * v2[2]];
+      }
+      var la = Math.atan2(p[2], Math.hypot(p[0], p[1])) * deg;
+      var lo = Math.atan2(p[1], p[0]) * deg;
+      while (lo - prevLng > 180) lo -= 360;
+      while (lo - prevLng < -180) lo += 360;
+      prevLng = lo;
+      pts.push([la, lo]);
+    }
+    return pts;
+  }
+
+  /* 大圆航线：球面插值成折线（跨 180° 经线时展开经度避免画错） */
+  function gcPoints(a, b, n) {
+    var deg = 180 / Math.PI;
+    var f1 = a[0] * rad, l1 = a[1] * rad, f2 = b[0] * rad, l2 = b[1] * rad;
+    var v1 = [Math.cos(f1) * Math.cos(l1), Math.cos(f1) * Math.sin(l1), Math.sin(f1)];
+    var v2 = [Math.cos(f2) * Math.cos(l2), Math.cos(f2) * Math.sin(l2), Math.sin(f2)];
+    var dot = Math.max(-1, Math.min(1, v1[0] * v2[0] + v1[1] * v2[1] + v1[2] * v2[2]));
+    var w = Math.acos(dot), pts = [], prevLng = a[1];
+    for (var i = 0; i <= n; i++) {
+      var t = i / n, p;
+      if (w < 1e-9) { p = v1; }
+      else {
+        var s1 = Math.sin((1 - t) * w) / Math.sin(w), s2 = Math.sin(t * w) / Math.sin(w);
+        p = [s1 * v1[0] + s2 * v2[0], s1 * v1[1] + s2 * v2[1], s1 * v1[2] + s2 * v2[2]];
+      }
+      var la = Math.atan2(p[2], Math.hypot(p[0], p[1])) * deg;
+      var lo = Math.atan2(p[1], p[0]) * deg;
+      while (lo - prevLng > 180) lo -= 360;
+      while (lo - prevLng < -180) lo += 360;
+      prevLng = lo;
+      pts.push([la, lo]);
+    }
+    return pts;
+  }
+
+  /* 连线与标注（瓦片源就绪后调用） */
+  var drawn = false;
+  function drawOverlays() {
+    if (drawn) return;
+    drawn = true;
+    var arc = gcPoints(A, B, 128);
+    var line = L.polyline(arc, { color: '#43d17c', weight: 3.5, opacity: 0.9 }).addTo(map);
+    var mid = arc[Math.floor(arc.length / 2)];
+    L.marker(mid, { opacity: 0, interactive: false }).addTo(map)
+      .bindTooltip('≈ ' + km.toLocaleString('zh-CN') + ' km', { permanent: true, direction: 'top', className: 'lbl', offset: [0, -4] });
+
+    function mark(pt, color, label) {
+      L.circleMarker(pt, { radius: 7, color: '#fff', weight: 2, fillColor: color, fillOpacity: 1 })
+        .addTo(map).bindTooltip(label, { permanent: true, direction: 'top', className: 'lbl', offset: [0, -6] });
+    }
+    mark(A, '#2b7fff', '📡 ' + NA);
+    mark(B, '#ff8c00', '📻 ' + NB);
+    map.fitBounds(line.getBounds(), { padding: [50, 50] });
+  }
+  drawOverlays();   // 先画连线标注，瓦片稍后到位
+})();
+</script>
+</body>
+</html>
