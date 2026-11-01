@@ -1,5 +1,7 @@
 # 📻 环球收听时钟 Global Radio Guide
 
+> **在线使用**：https://jerryliuxa.github.io/global-radio-list/ （GitHub Pages，无需安装）
+
 一个纯静态的广播节目表网站：**不同国家/城市的听友打开网页，即可按自己当地时间查看此刻正在播出的短波（SW，含 DRM 数字广播）与 FM 节目和频率**，并可一键在 KiwiSDR / OpenWebRX / WebSDR 上收听。
 
 **中英双语**：右上角 `EN / 中文` 按钮切换界面语言（首次访问按浏览器语言自动选择，选择保存在 localStorage）；地图页随链接语言参数显示。
