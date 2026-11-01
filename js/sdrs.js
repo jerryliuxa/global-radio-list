@@ -11,9 +11,11 @@
        直到在"🎧 SDR 收听"弹窗中点击"↺ 恢复默认"重新同步本文件。
 */
 window.RADIO_SDRS_CFG = {
-  rev: 1,
+  rev: 2,
   sdrs: [
-    { name: 'KiwiSDR jjm0311', url: 'http://jjm0311.proxy.kiwisdr.com:8073/', type: 'kiwi', def: true },
+    { name: 'KiwiSDR JK1LOT', url: 'http://jk1lot.ham-radio-op.net:8073/', type: 'kiwi', def: true },
+    { name: 'KiwiSDR jj8ntm', url: 'http://jj8ntm.proxy.kiwisdr.com:8073/', type: 'kiwi', def: false },
+    { name: 'KiwiSDR jjm0311', url: 'http://jjm0311.proxy.kiwisdr.com:8073/', type: 'kiwi', def: false },
     // 示例（去掉行首注释即可启用；type 可省略自动识别）:
     // { name: 'OpenWebRX Twente', url: 'https://rx.example.org/', type: 'openwebrx' },
     // { name: 'WebSDR Twente', url: 'http://websdr.ewi.utwente.nl:8901/', type: 'websdr' },
